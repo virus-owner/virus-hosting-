@@ -2,6 +2,7 @@ package com.virus.hosting
 
 import android.Manifest
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
@@ -35,13 +36,6 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             notifPerm.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
-
-        try {
-            val pm = getSystemService(POWER_SERVICE) as PowerManager
-            if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-                startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-            }
-        } catch (_: Exception) {}
 
         setContent {
             MaterialTheme(
@@ -130,6 +124,27 @@ fun AppScreen() {
                 if (running) "⏹ إيقاف السيرفر" else "▶ تشغيل السيرفر",
                 fontSize = 16.sp
             )
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        OutlinedButton(
+            onClick = {
+                try {
+                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                    intent.data = Uri.parse("package:${context.packageName}")
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    try {
+                        context.startActivity(
+                            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                        )
+                    } catch (_: Exception) {}
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("🔋 إلغاء تحسين البطارية")
         }
 
         Spacer(Modifier.height(30.dp))

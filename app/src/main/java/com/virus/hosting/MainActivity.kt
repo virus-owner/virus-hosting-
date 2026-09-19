@@ -2,27 +2,23 @@ package com.virus.hosting
 
 import android.Manifest
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.PowerManager
-import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
+import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.compose.*
+import com.virus.hosting.ui.*
+import com.virus.hosting.ui.theme.VirusColors
+import com.virus.hosting.ui.theme.VirusTheme
+import com.virus.hosting.ui.screens.*
 
 class MainActivity : ComponentActivity() {
 
@@ -37,20 +33,16 @@ class MainActivity : ComponentActivity() {
             notifPerm.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
+        // تشغيل السيرفر في الخلفية
+        startService(Intent(this, HostingService::class.java))
+
         setContent {
-            MaterialTheme(
-                colorScheme = darkColorScheme(
-                    primary = Color(0xFF22D3EE),
-                    background = Color(0xFF0A0E17),
-                    surface = Color(0xFF111827),
-                    onPrimary = Color(0xFF0A0E17)
-                )
-            ) {
+            VirusTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color = VirusColors.Bg
                 ) {
-                    AppScreen()
+                    VirusApp()
                 }
             }
         }
@@ -58,154 +50,62 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun AppScreen() {
-    val context = LocalContext.current
-    var running by remember { mutableStateOf(HostingService.isRunning) }
-    var botToken by remember { mutableStateOf("") }
-    var ownerId by remember { mutableStateOf("") }
-    var message by remember { mutableStateOf("") }
+fun VirusApp() {
+    val navController = rememberNavController()
+    val navBackStack by navController.currentBackStackEntryAsState()
+    val current = navBackStack?.destination
 
-    LaunchedEffect(Unit) {
-        while (true) {
-            running = HostingService.isRunning
-            delay(1500)
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            "🦠 Virus Hosting",
-            color = Color(0xFF22D3EE),
-            fontSize = 30.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(vertical = 20.dp)
-        )
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = if (running)
-                    Color(0xFF10B981).copy(alpha = 0.25f)
-                else
-                    Color(0xFFEF4444).copy(alpha = 0.25f)
-            )
-        ) {
-            Column(Modifier.padding(20.dp)) {
-                Text(
-                    if (running) "🟢 السيرفر يعمل" else "🔴 السيرفر متوقف",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.height(8.dp))
-                Text("http://localhost:8080", color = Color(0xFF94A3B8))
+    Scaffold(
+        containerColor = VirusColors.Bg,
+        bottomBar = {
+            NavigationBar(
+                containerColor = VirusColors.Surface,
+                tonalElevation = 8.dp
+            ) {
+                navItems.forEach { item ->
+                    NavigationBarItem(
+                        selected = current?.hierarchy?.any { it.route == item.route } == true,
+                        onClick = {
+                            navController.navigate(item.route) {
+                                popUpTo(NavRoutes.DASHBOARD) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = { Icon(item.icon, item.label) },
+                        label = {
+                            Text(
+                                item.label,
+                                fontSize = androidx.compose.ui.unit.TextUnit(
+                                    9f,
+                                    androidx.compose.ui.unit.TextUnitType.Sp
+                                )
+                            )
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = VirusColors.Cyan,
+                            selectedTextColor = VirusColors.Cyan,
+                            indicatorColor = VirusColors.Cyan.copy(alpha = 0.15f),
+                            unselectedIconColor = VirusColors.TextMuted,
+                            unselectedTextColor = VirusColors.TextMuted
+                        )
+                    )
+                }
             }
         }
-
-        Spacer(Modifier.height(20.dp))
-
-        Button(
-            onClick = {
-                val intent = Intent(context, HostingService::class.java)
-                if (running) context.stopService(intent)
-                else context.startService(intent)
-            },
-            modifier = Modifier.fillMaxWidth().height(55.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (running) Color(0xFFEF4444) else Color(0xFF22D3EE)
-            )
+    ) { padding ->
+        NavHost(
+            navController = navController,
+            startDestination = NavRoutes.DASHBOARD,
+            modifier = Modifier.padding(padding)
         ) {
-            Text(
-                if (running) "⏹ إيقاف السيرفر" else "▶ تشغيل السيرفر",
-                fontSize = 16.sp
-            )
+            composable(NavRoutes.DASHBOARD) { DashboardScreen(navController) }
+            composable(NavRoutes.BOTS) { BotsScreen() }
+            composable(NavRoutes.PROJECTS) { ProjectsScreen() }
+            composable(NavRoutes.FILES) { FilesScreen() }
+            composable(NavRoutes.EDITOR) { EditorScreen() }
+            composable(NavRoutes.LOGS) { LogsScreen() }
+            composable(NavRoutes.SETTINGS) { SettingsScreen() }
         }
-
-        Spacer(Modifier.height(12.dp))
-
-        OutlinedButton(
-            onClick = {
-                try {
-                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-                    intent.data = Uri.parse("package:${context.packageName}")
-                    context.startActivity(intent)
-                } catch (e: Exception) {
-                    try {
-                        context.startActivity(
-                            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                        )
-                    } catch (_: Exception) {}
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("🔋 إلغاء تحسين البطارية")
-        }
-
-        Spacer(Modifier.height(30.dp))
-        HorizontalDivider(color = Color(0xFF1F2937))
-        Spacer(Modifier.height(20.dp))
-
-        Text(
-            "🤖 إعدادات بوت تيليجرام",
-            fontSize = 18.sp,
-            color = Color(0xFF22D3EE)
-        )
-        Spacer(Modifier.height(15.dp))
-
-        OutlinedTextField(
-            value = botToken,
-            onValueChange = { botToken = it },
-            label = { Text("Bot Token") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
-        Spacer(Modifier.height(10.dp))
-
-        OutlinedTextField(
-            value = ownerId,
-            onValueChange = { ownerId = it },
-            label = { Text("Telegram Owner ID") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
-        Spacer(Modifier.height(15.dp))
-
-        Button(
-            onClick = {
-                if (botToken.isBlank() || ownerId.toLongOrNull() == null) {
-                    message = "❌ املأ البيانات صح"
-                    return@Button
-                }
-                val intent = Intent(context, HostingService::class.java).apply {
-                    action = "START_BOT"
-                    putExtra("token", botToken)
-                    putExtra("ownerId", ownerId.toLong())
-                }
-                context.startService(intent)
-                message = "✅ تم تشغيل البوت"
-            },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF6366F1)
-            )
-        ) { Text("🚀 تشغيل البوت") }
-
-        if (message.isNotEmpty()) {
-            Spacer(Modifier.height(15.dp))
-            Text(message, color = Color(0xFF22D3EE))
-        }
-
-        Spacer(Modifier.height(40.dp))
-        Text(
-            "© 2025 Virus Hosting",
-            color = Color(0xFF64748B),
-            fontSize = 12.sp
-        )
     }
 }
